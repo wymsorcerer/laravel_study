@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PlayersController;
+use App\Http\Controllers\PlayerItemController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -22,7 +23,7 @@ Route::put('/players/{id}', [PlayersController::class, 'update']);
 Route::delete('/players/{id}', [PlayersController::class, 'destroy']);
 
 // Player Item API
-Route::get('/players/itmes/{id}', [PlayersController::class, 'itemList']);
-Route::post('/players/itmes/add', [PlayersController::class, 'addItem']);
-Route::post('/players/itmes/use', [PlayersController::class, 'useItem']);
-Route::post('/players/itmes/purchase', [PlayersController::class, 'purchaseItem']);
+Route::get('/players/items/{id}', [PlayerItemController::class, 'itemList']);
+Route::post('/players/{id}/addItem', [PlayerItemController::class, 'addItem']);
+Route::post('/players/items/use', [PlayerItemController::class, 'useItem']);
+Route::post('/players/items/purchase', [PlayerItemController::class, 'purchaseItem']);

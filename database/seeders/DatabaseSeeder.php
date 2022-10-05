@@ -15,7 +15,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             PlayerSeeder::class,
-            ItemSeeder::class
+            ItemSeeder::class,
+			PlayerItemSeeder::class,
         ]);
     }
 }
