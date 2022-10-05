@@ -25,5 +25,5 @@ Route::delete('/players/{id}', [PlayersController::class, 'destroy']);
 // Player Item API
 Route::get('/players/items/{id}', [PlayerItemController::class, 'itemList']);
 Route::post('/players/{id}/addItem', [PlayerItemController::class, 'addItem']);
-Route::post('/players/items/use', [PlayerItemController::class, 'useItem']);
-Route::post('/players/items/purchase', [PlayerItemController::class, 'purchaseItem']);
+Route::post('/players/{id}/useItem', [PlayerItemController::class, 'useItem']);
+Route::post('/players/{id}/purchaseItem', [PlayerItemController::class, 'purchaseItem']);
