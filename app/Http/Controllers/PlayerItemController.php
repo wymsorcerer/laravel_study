@@ -7,6 +7,7 @@ use App\Models\Item;
 use App\Models\PlayerItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 
 define("MAX_HP", 200);
 define("MAX_MP", 200);
@@ -14,6 +15,8 @@ define("MAX_ITEM_COUNT", 99);
 
 define("STATUS_NOT_FOUND", 404);
 define("STATUS_COMMON_ERROR", 400);
+
+define("GACHA_PRICE", 10);
 
 
 
@@ -129,7 +132,7 @@ class PlayerItemController extends Controller
 		if (!PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->exists()) {
 			return new Response("アイテム存在しない", STATUS_NOT_FOUND);
 		}
-		
+
 		$player_items = PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->get();
 		if ($player_items[0]->count < $request->count) {
 			return new Response("アイテム数足りない", STATUS_COMMON_ERROR);
@@ -233,5 +236,90 @@ class PlayerItemController extends Controller
 			"count" => $player_items[0]->count,
 			"player" => $player
 		]);
+	}
+
+	public function gachaItem(Request $request, $id)
+	{
+		$player = Player::find($id);
+		if($player->money < $request->count * GACHA_PRICE){
+			return new Response("お金足りない", STATUS_COMMON_ERROR);
+		}
+
+		$gacha_cnt = array(
+			1 => 0,
+			2 => 0,
+		);
+		$request_count = $request->count;
+
+		while ($request_count > 0) {//count回ガチャ
+			$num = $this->generateGacha();
+
+			$request_count--;
+			if ($num == 0) {//外れ
+				continue;
+			} else if ($num == 1) {//item_id 1
+				$gacha_cnt[1]++;
+			} else if ($num == 2) {//item_id 2
+				$gacha_cnt[2]++;
+			}
+		}
+
+		$total_cnt = 0;
+		if ($gacha_cnt[1] > 0) {
+			$player_items = PlayerItem::where(['player_id' => $id, "item_id" => 1])->get();
+
+			$n = isset($player_items[0]->count) ? $player_items[0]->count : 0;
+			$cnt = MAX_ITEM_COUNT - $n  > $gacha_cnt[1] ? $gacha_cnt[1] : MAX_ITEM_COUNT - $n;
+			$total_cnt += $cnt;
+
+			if (isset($player_items[0]->count)) {
+				PlayerItem::where(['player_id' => $id, "item_id" => 1])->update([
+					"count" => $player_items[0]->count + $cnt
+				]);
+			} else {
+				PlayerItem::insert([
+					"player_id" => $id,
+					"item_id" => 1,
+					"count" => $cnt
+				]);
+			}
+		}
+		if ($gacha_cnt[2] > 0) {
+			$player_items = PlayerItem::where(['player_id' => $id, "item_id" => 2])->get();
+
+			$n = isset($player_items[0]->count) ? $player_items[0]->count : 0;
+			$cnt = MAX_ITEM_COUNT - $n  > $gacha_cnt[2] ? $gacha_cnt[2] : MAX_ITEM_COUNT - $n;
+			$total_cnt += $cnt;
+
+			if (isset($player_items[0]->count)) {
+				PlayerItem::where(['player_id' => $id, "item_id" => 2])->update([
+					"count" => $player_items[0]->count + $cnt
+				]);
+			} else {
+				PlayerItem::insert([
+					"player_id" => $id,
+					"item_id" => 2,
+					"count" => $cnt
+				]);
+			}
+		}
+
+		Player::find($id)->update(["money" => $player->money - $total_cnt * GACHA_PRICE]);
+
+		return new Response($gacha_cnt);
+	}
+
+	private function generateGacha()
+	{
+		$result = 0;
+		$rand_num = rand(1, 100); //[1,100]
+		if ($rand_num <= 40) { //40%
+			$result = 1;
+		} else if ($rand_num <= 90) { //50%
+			$result = 2;
+		} else { //10%
+			$result = 0;
+		}
+		return $result;
 	}
 }
