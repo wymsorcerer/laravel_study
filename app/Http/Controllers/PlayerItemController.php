@@ -242,70 +242,49 @@ class PlayerItemController extends Controller
 	public function gachaItem(Request $request, $id)
 	{
 		$player = Player::find($id);
-		if($player->money < $request->count * GACHA_PRICE){
+		if ($player->money < $request->count * GACHA_PRICE) {
 			return new Response("お金足りない", STATUS_COMMON_ERROR);
 		}
 
-		$gacha_cnt = array(
-			1 => 0,
-			2 => 0,
-		);
+		$gacha_cnt = array();
 		$request_count = $request->count;
 
-		$gacha_data = GachaData::where(["event_id"=>1])->get();//event 1
-		while ($request_count > 0) {//count回ガチャ
+		$gacha_data = GachaData::where(["event_id" => 1])->get(); //event 1
+		while ($request_count > 0) { //count回ガチャ
 			$num = $this->generateGacha($gacha_data);
-
 			$request_count--;
-			if ($num == 0) {//外れ
-				continue;
-			} else if ($num == 1) {//item_id 1
-				$gacha_cnt[1]++;
-			} else if ($num == 2) {//item_id 2
-				$gacha_cnt[2]++;
+
+			if (isset($gacha_cnt[$num])) {
+				$gacha_cnt[$num]++;
+			} else {
+				$gacha_cnt[$num] = 1;
 			}
 		}
 
 		$total_cnt = 0;
-		if ($gacha_cnt[1] > 0) {
-			$player_items = PlayerItem::where(['player_id' => $id, "item_id" => 1])->get();
+		//update player_item table
+		foreach ($gacha_cnt as $key => $value) {
+			if($value > 0){
+				$player_items = PlayerItem::where(['player_id' => $id, "item_id" => $key])->get();
 
-			$n = isset($player_items[0]->count) ? $player_items[0]->count : 0;
-			$cnt = MAX_ITEM_COUNT - $n  > $gacha_cnt[1] ? $gacha_cnt[1] : MAX_ITEM_COUNT - $n;
-			$total_cnt += $cnt;
-
-			if (isset($player_items[0]->count)) {
-				PlayerItem::where(['player_id' => $id, "item_id" => 1])->update([
-					"count" => $player_items[0]->count + $cnt
-				]);
-			} else {
-				PlayerItem::insert([
-					"player_id" => $id,
-					"item_id" => 1,
-					"count" => $cnt
-				]);
+				$n = isset($player_items[0]->count) ? $player_items[0]->count : 0;
+				$cnt = MAX_ITEM_COUNT - $n  > $value ? $value : MAX_ITEM_COUNT - $n;
+				$total_cnt += $cnt;
+	
+				if (isset($player_items[0]->count)) {
+					PlayerItem::where(['player_id' => $id, "item_id" => $key])->update([
+						"count" => $player_items[0]->count + $cnt
+					]);
+				} else {
+					PlayerItem::insert([
+						"player_id" => $id,
+						"item_id" => $key,
+						"count" => $cnt
+					]);
+				}
 			}
 		}
-		if ($gacha_cnt[2] > 0) {
-			$player_items = PlayerItem::where(['player_id' => $id, "item_id" => 2])->get();
-
-			$n = isset($player_items[0]->count) ? $player_items[0]->count : 0;
-			$cnt = MAX_ITEM_COUNT - $n  > $gacha_cnt[2] ? $gacha_cnt[2] : MAX_ITEM_COUNT - $n;
-			$total_cnt += $cnt;
-
-			if (isset($player_items[0]->count)) {
-				PlayerItem::where(['player_id' => $id, "item_id" => 2])->update([
-					"count" => $player_items[0]->count + $cnt
-				]);
-			} else {
-				PlayerItem::insert([
-					"player_id" => $id,
-					"item_id" => 2,
-					"count" => $cnt
-				]);
-			}
-		}
-
+		// update player table
 		Player::find($id)->update(["money" => $player->money - $total_cnt * GACHA_PRICE]);
 
 		// response
@@ -328,9 +307,9 @@ class PlayerItemController extends Controller
 		$rand_num = rand(1, 100); //[1,100]
 
 		$current_percent = 0;
-		foreach ($gacha_data as $value){
+		foreach ($gacha_data as $value) {
 			$current_percent += $value->percent;
-			if($rand_num <= $current_percent){
+			if ($rand_num <= $current_percent) {
 				$result = $value->item_id;
 				break;
 			}
