@@ -145,6 +145,8 @@ class PlayerItemController extends Controller
 		$item = Item::find($request->item_id);
 
 		try {//transaction
+			DB::beginTransaction();
+			
 			if ($player_items[0]->item_id == 1 && $player->hp < MAX_HP) { //hp回復			
 				//上限まで使う数を計算
 				$cnt = ((int)((MAX_HP - $player->hp) / $item->value)) + 1 < $request->count
@@ -205,6 +207,8 @@ class PlayerItemController extends Controller
 		$item = Item::find($request->item_id);
 
 		try {//transaction
+			DB::beginTransaction();
+
 			if ($player_items) {
 				//上限まで買える数
 				$cnt = MAX_ITEM_COUNT - $player_items[0]->count > $request->count
