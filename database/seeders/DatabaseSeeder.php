@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             PlayerSeeder::class,
             ItemSeeder::class,
 			PlayerItemSeeder::class,
+			GachaDataSeeder::class,
         ]);
     }
 }

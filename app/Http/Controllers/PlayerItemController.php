@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Player;
 use App\Models\Item;
 use App\Models\PlayerItem;
+use App\Models\GachaData;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
@@ -251,8 +252,9 @@ class PlayerItemController extends Controller
 		);
 		$request_count = $request->count;
 
+		$gacha_data = GachaData::where(["event_id"=>1])->get();//event 1
 		while ($request_count > 0) {//count回ガチャ
-			$num = $this->generateGacha();
+			$num = $this->generateGacha($gacha_data);
 
 			$request_count--;
 			if ($num == 0) {//外れ
@@ -306,20 +308,34 @@ class PlayerItemController extends Controller
 
 		Player::find($id)->update(["money" => $player->money - $total_cnt * GACHA_PRICE]);
 
-		return new Response($gacha_cnt);
+		// response
+		$player = Player::find($id);
+		$items = PlayerItem::select(["item_id", "count"])
+			->where(['player_id' => $id])->get();
+
+		return new Response([
+			"result" => $gacha_cnt,
+			"player" => [
+				"money" => $player->money,
+				"items" => $items
+			]
+		]);
 	}
 
-	private function generateGacha()
+	private function generateGacha($gacha_data)
 	{
 		$result = 0;
 		$rand_num = rand(1, 100); //[1,100]
-		if ($rand_num <= 40) { //40%
-			$result = 1;
-		} else if ($rand_num <= 90) { //50%
-			$result = 2;
-		} else { //10%
-			$result = 0;
+
+		$current_percent = 0;
+		foreach ($gacha_data as $value){
+			$current_percent += $value->percent;
+			if($rand_num <= $current_percent){
+				$result = $value->item_id;
+				break;
+			}
 		}
+
 		return $result;
 	}
 }
