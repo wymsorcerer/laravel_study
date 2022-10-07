@@ -8,6 +8,8 @@ use App\Models\PlayerItem;
 use App\Models\GachaData;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 define("MAX_HP", 200);
@@ -140,38 +142,44 @@ class PlayerItemController extends Controller
 		}
 
 		$player = Player::find($id);
+		$item = Item::find($request->item_id);
 
-		if ($player_items[0]->item_id == 1 && $player->hp < MAX_HP) { //hp回復
-			$item = Item::find($request->item_id);
-			//上限まで使う数を計算
-			$cnt = ((int)((MAX_HP - $player->hp) / $item->value)) + 1 < $request->count
-				? ((int)((MAX_HP - $player->hp) / $item->value)) + 1 : $request->count;
+		try {//transaction
+			if ($player_items[0]->item_id == 1 && $player->hp < MAX_HP) { //hp回復			
+				//上限まで使う数を計算
+				$cnt = ((int)((MAX_HP - $player->hp) / $item->value)) + 1 < $request->count
+					? ((int)((MAX_HP - $player->hp) / $item->value)) + 1 : $request->count;
+	
+				// count数更新
+				PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->update([
+					"count" => $player_items[0]->count - $cnt
+				]);
+	
+				// hp更新
+				$hp = $player->hp + $item->value * $cnt > MAX_HP ? MAX_HP : $player->hp + $item->value * $cnt;
+				Player::where(['id' => $id])->update(["hp" => $hp]);
+			} else if ($player_items[0]->item_id == 2 && $player->mp < MAX_MP) { //mp回復
+				//上限まで使う数を計算
+				$cnt = ((int)((MAX_MP - $player->mp) / $item->value)) + 1 < $request->count
+					? ((int)((MAX_MP - $player->mp) / $item->value)) + 1 : $request->count;
+	
+				// count数更新
+				PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->update([
+					"count" => $player_items[0]->count - $cnt
+				]);
+	
+				// mp更新
+				$mp = $player->mp + $item->value * $cnt > MAX_MP ? MAX_MP : $player->mp + $item->value * $cnt;
+				Player::where(['id' => $id])->update(["mp" => $mp]);
+			} else {
+				return new Response("HP/MPがMAXだったため、アイテムを使用しなかった", STATUS_COMMON_ERROR);
+			}
 
-			// count数更新
-			PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->update([
-				"count" => $player_items[0]->count - $cnt
-			]);
-
-			// hp更新
-			$hp = $player->hp + $item->value * $cnt > MAX_HP ? MAX_HP : $player->hp + $item->value * $cnt;
-			Player::where(['id' => $id])->update(["hp" => $hp]);
-		} else if ($player_items[0]->item_id == 2 && $player->mp < MAX_MP) { //mp回復
-			$item = Item::find($request->item_id);
-			//上限まで使う数を計算
-			$cnt = ((int)((MAX_MP - $player->mp) / $item->value)) + 1 < $request->count
-				? ((int)((MAX_MP - $player->mp) / $item->value)) + 1 : $request->count;
-
-			// count数更新
-			PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->update([
-				"count" => $player_items[0]->count - $cnt
-			]);
-
-			// mp更新
-			$mp = $player->mp + $item->value * $cnt > MAX_MP ? MAX_MP : $player->mp + $item->value * $cnt;
-			Player::where(['id' => $id])->update(["mp" => $mp]);
-		} else {
-			return new Response("HP/MPがMAXだったため、アイテムを使用しなかった", STATUS_COMMON_ERROR);
+			DB::commit();
+		} catch (\Throwable $th) {
+			DB::rollBack();
 		}
+
 
 		// success response
 		// 最新のデータを取得
@@ -196,37 +204,43 @@ class PlayerItemController extends Controller
 		$player = Player::find($id);
 		$item = Item::find($request->item_id);
 
-		if ($player_items) {
-			//上限まで買える数
-			$cnt = MAX_ITEM_COUNT - $player_items[0]->count > $request->count
-				? $request->count : MAX_ITEM_COUNT - $player_items[0]->count;
-
-			//お金なくなるまで買える数
-			$cnt = (int)($player->money / $item->price) > $cnt ? $cnt : (int)($player->money / $item->price);
-			if ($cnt == 0) {
-				return new Response("お金がない/アイテム数上限になったため、アイテムを購入しなかった", STATUS_COMMON_ERROR);
+		try {//transaction
+			if ($player_items) {
+				//上限まで買える数
+				$cnt = MAX_ITEM_COUNT - $player_items[0]->count > $request->count
+					? $request->count : MAX_ITEM_COUNT - $player_items[0]->count;
+	
+				//お金なくなるまで買える数
+				$cnt = (int)($player->money / $item->price) > $cnt ? $cnt : (int)($player->money / $item->price);
+				if ($cnt == 0) {
+					return new Response("お金がない/アイテム数上限になったため、アイテムを購入しなかった", STATUS_COMMON_ERROR);
+				}
+	
+				PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->update([
+					"count" => $player_items[0]->count + $cnt
+				]);
+				Player::find($id)->update(["money" => $player->money - $cnt * $item->price]);
+			} else {
+				//上限まで買える数
+				$cnt = MAX_ITEM_COUNT > $request->count ? $request->count : MAX_ITEM_COUNT;
+	
+				//お金なくなるまで買える数
+				$cnt = (int)($player->money / $item->price) > $request->count ? $request->count : (int)($player->money / $item->price);
+				if ($cnt == 0) {
+					return new Response("お金がない/アイテム数上限になったため、アイテムを購入しなかった", STATUS_COMMON_ERROR);
+				}
+	
+				PlayerItem::insert([
+					"player_id" => $id,
+					"item_id" => $request->item_id,
+					"count" => $cnt
+				]);
+				Player::find($id)->update(["money" => $player->money - $cnt * $item->price]);
 			}
 
-			PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->update([
-				"count" => $player_items[0]->count + $cnt
-			]);
-			Player::find($id)->update(["money" => $player->money - $cnt * $item->price]);
-		} else {
-			//上限まで買える数
-			$cnt = MAX_ITEM_COUNT > $request->count ? $request->count : MAX_ITEM_COUNT;
-
-			//お金なくなるまで買える数
-			$cnt = (int)($player->money / $item->price) > $request->count ? $request->count : (int)($player->money / $item->price);
-			if ($cnt == 0) {
-				return new Response("お金がない/アイテム数上限になったため、アイテムを購入しなかった", STATUS_COMMON_ERROR);
-			}
-
-			PlayerItem::insert([
-				"player_id" => $id,
-				"item_id" => $request->item_id,
-				"count" => $cnt
-			]);
-			Player::find($id)->update(["money" => $player->money - $cnt * $item->price]);
+			DB::commit();
+		} catch (\Throwable $th) {
+			DB::rollBack();
 		}
 
 		//success response
@@ -262,30 +276,34 @@ class PlayerItemController extends Controller
 		}
 
 		$total_cnt = 0;
-		//update player_item table
-		foreach ($gacha_cnt as $key => $value) {
-			if($value > 0){
-				$player_items = PlayerItem::where(['player_id' => $id, "item_id" => $key])->get();
 
-				$n = isset($player_items[0]->count) ? $player_items[0]->count : 0;
-				$cnt = MAX_ITEM_COUNT - $n  > $value ? $value : MAX_ITEM_COUNT - $n;
-				$total_cnt += $cnt;
-	
-				if (isset($player_items[0]->count)) {
-					PlayerItem::where(['player_id' => $id, "item_id" => $key])->update([
-						"count" => $player_items[0]->count + $cnt
-					]);
-				} else {
-					PlayerItem::insert([
-						"player_id" => $id,
-						"item_id" => $key,
-						"count" => $cnt
-					]);
+		//transaction
+		DB::transaction(function () use ($gacha_cnt, $id, $total_cnt, $player) {
+			//update player_item table
+			foreach ($gacha_cnt as $key => $value) {
+				if ($value > 0) {
+					$player_items = PlayerItem::where(['player_id' => $id, "item_id" => $key])->get();
+
+					$n = isset($player_items[0]->count) ? $player_items[0]->count : 0;
+					$cnt = MAX_ITEM_COUNT - $n  > $value ? $value : MAX_ITEM_COUNT - $n;
+					$total_cnt += $cnt;
+
+					if (isset($player_items[0]->count)) {
+						PlayerItem::where(['player_id' => $id, "item_id" => $key])->update([
+							"count" => $player_items[0]->count + $cnt
+						]);
+					} else {
+						PlayerItem::insert([
+							"player_id" => $id,
+							"item_id" => $key,
+							"count" => $cnt
+						]);
+					}
 				}
 			}
-		}
-		// update player table
-		Player::find($id)->update(["money" => $player->money - $total_cnt * GACHA_PRICE]);
+			// update player table
+			Player::find($id)->update(["money" => $player->money - $total_cnt * GACHA_PRICE]);
+		});
 
 		// response
 		$player = Player::find($id);
