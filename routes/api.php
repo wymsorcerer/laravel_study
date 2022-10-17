@@ -28,3 +28,5 @@ Route::post('/players/{id}/addItem', [PlayerItemController::class, 'addItem']);
 Route::post('/players/{id}/useItem', [PlayerItemController::class, 'useItem']);
 Route::post('/players/{id}/purchaseItem', [PlayerItemController::class, 'purchaseItem']);
 Route::post('/players/{id}/gacha', [PlayerItemController::class, 'gachaItem']);
+
+Route::post('/players/{id}/useItemRaw', [PlayerItemController::class, 'useItem_Raw']);

@@ -130,6 +130,19 @@ class PlayerItemController extends Controller
 		}
 	}
 
+	public function useItem_Raw(Request $request, $id){
+
+		$player = DB::select("select * from players where id = ?", [$id]);
+
+		DB::statement("update players set mp = ? where id = ?", [$player[0]->mp + 1, $id]);
+
+		$player = DB::select("select * from players where id = ?", [$id]);
+
+		return new Response([
+			"mp" => $player[0]->mp
+		]);
+	}
+
 	public function useItem(Request $request, $id)
 	{
 		if (!PlayerItem::where(['player_id' => $id, "item_id" => $request->item_id])->exists()) {
